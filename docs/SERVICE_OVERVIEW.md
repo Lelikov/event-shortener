@@ -46,6 +46,10 @@ Alembic migration runner (`entrypoint.sh` runs `alembic upgrade head` first).
 `expires_at` / `not_before` cross the wire as float epoch seconds and are stored
 as `timestamptz`.
 
+## Tracing
+
+OpenTelemetry auto-instrumentation (FastAPI, asyncpg; no httpx or RabbitMQ in this service); exported via OTLP/gRPC to the collector → Tempo; gated by `OTEL_SDK_DISABLED` (off by default).
+
 ## Maturity / known limitations
 
 - Single Postgres table; redirect is one indexed lookup, no cache (adequate for
