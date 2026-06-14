@@ -12,6 +12,7 @@ from event_shortener.ioc import AppProvider
 from event_shortener.logger import setup_logger
 from event_shortener.metrics import HttpMetricsMiddleware
 from event_shortener.routes import root_router
+from event_shortener.telemetry import instrument_asyncpg, instrument_fastapi, setup_tracing
 
 
 container = make_async_container(AppProvider(), FastapiProvider())
@@ -32,6 +33,9 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 
 app = FastAPI(title="event-shortener", version="0.1.0", lifespan=lifespan)
+setup_tracing()
+instrument_fastapi(app)
+instrument_asyncpg()
 setup_dishka(container=container, app=app)
 app.include_router(root_router)
 

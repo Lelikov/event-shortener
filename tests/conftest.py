@@ -11,6 +11,8 @@ If neither is available the whole suite skips rather than failing.
 """
 
 import os
+
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 import shutil
 import socket
 import subprocess
