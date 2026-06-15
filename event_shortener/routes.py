@@ -11,7 +11,7 @@ from event_shortener import metrics
 from event_shortener.auth import require_api_key
 from event_shortener.dto.short_url import ShortUrlDTO
 from event_shortener.interfaces.shortener import IShortenerController
-from event_shortener.schemas.short_url import IdentResponse, ShortenRequest
+from event_shortener.schemas.short_url import IdentResponse, IdentStatsResponse, ShortenRequest
 
 
 logger = structlog.get_logger(__name__)
@@ -68,6 +68,14 @@ async def delete_by_external_id(external_id: str, controller: FromDishka[IShorte
     return {}
 
 
+@api_router.get("/{ident}/stats", response_model=IdentStatsResponse)
+async def ident_stats(ident: str, controller: FromDishka[IShortenerController]) -> IdentStatsResponse:
+    record = await controller.resolve(ident)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ident {ident!r} not found")
+    return IdentStatsResponse(ident=record.ident, click_count=record.click_count)
+
+
 def _within_window(record: ShortUrlDTO, now: datetime) -> bool:
     if record.not_before is not None and now < record.not_before:
         return False
@@ -89,6 +97,10 @@ async def redirect(ident: str, controller: FromDishka[IShortenerController]) -> 
         metrics.REDIRECTS_TOTAL.labels(result="expired").inc()
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Short link is not active")
 
+    try:
+        await controller.register_click(ident)
+    except Exception:
+        logger.exception("Failed to record click; serving redirect anyway", ident=ident)
     metrics.REDIRECTS_TOTAL.labels(result="ok").inc()
     return RedirectResponse(url=record.long_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 

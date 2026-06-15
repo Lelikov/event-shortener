@@ -118,3 +118,32 @@ def test_redirect_open_window_307(client) -> None:
     ident = client.get("/api/v1/urls/external/ext-open").json()["ident"]
     resp = client.get(f"/{ident}", follow_redirects=False)
     assert resp.status_code == 307
+
+
+def test_redirect_increments_click_count(client) -> None:
+    now = time.time()
+    client.post(
+        SHORTEN_URL,
+        json=_payload("ext-clicks", long_url="https://live.example", not_before=now - 60, expires_at=now + 3600),
+    )
+    ident = client.get("/api/v1/urls/external/ext-clicks").json()["ident"]
+
+    assert client.get(f"/api/v1/urls/{ident}/stats").json()["click_count"] == 0
+    for _ in range(3):
+        assert client.get(f"/{ident}", follow_redirects=False).status_code == 307
+    assert client.get(f"/api/v1/urls/{ident}/stats").json()["click_count"] == 3
+
+
+def test_expired_redirect_does_not_increment(client) -> None:
+    now = time.time()
+    client.post(
+        SHORTEN_URL,
+        json=_payload("ext-exp", long_url="https://gone.example", not_before=now - 120, expires_at=now - 60),
+    )
+    ident = client.get("/api/v1/urls/external/ext-exp").json()["ident"]
+    assert client.get(f"/{ident}", follow_redirects=False).status_code == 410
+    assert client.get(f"/api/v1/urls/{ident}/stats").json()["click_count"] == 0
+
+
+def test_stats_unknown_ident_404(client) -> None:
+    assert client.get("/api/v1/urls/abc-def-ghi/stats").status_code == 404

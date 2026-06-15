@@ -59,3 +59,6 @@ class ShortenerController:
 
     async def resolve(self, ident: str) -> ShortUrlDTO | None:
         return await self._db.get_by_ident(ident)
+
+    async def register_click(self, ident: str) -> None:
+        await self._db.increment_click(ident)

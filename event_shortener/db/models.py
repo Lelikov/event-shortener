@@ -32,6 +32,7 @@ class ShortUrl(Base):
         server_default=text("now()"),
         server_onupdate=text("now()"),
     )
+    click_count: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("0"))
 
     __table_args__ = (
         UniqueConstraint("ident", name="uq_short_urls_ident"),

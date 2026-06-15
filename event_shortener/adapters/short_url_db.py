@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-_COLUMNS = "id, ident, external_id, long_url, not_before, expires_at, created_at, updated_at"
+_COLUMNS = "id, ident, external_id, long_url, not_before, expires_at, created_at, updated_at, click_count"
 
 
 class IdentCollisionError(Exception):
@@ -30,6 +30,7 @@ def _from_row(row: RowMapping) -> ShortUrlDTO:
         expires_at=row["expires_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        click_count=row["click_count"],
     )
 
 
@@ -109,6 +110,12 @@ class ShortUrlDBAdapter:
         if row is None:
             return None
         return _from_row(row)
+
+    async def increment_click(self, ident: str) -> None:
+        await self._sql.execute(
+            "UPDATE short_urls SET click_count = click_count + 1 WHERE ident = :ident",
+            {"ident": ident},
+        )
 
     async def delete_by_external_id(self, external_id: str) -> bool:
         row = await self._sql.fetch_one(

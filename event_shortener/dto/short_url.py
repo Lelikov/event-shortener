@@ -22,3 +22,4 @@ class ShortUrlDTO:
     expires_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    click_count: int = 0

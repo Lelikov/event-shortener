@@ -29,3 +29,8 @@ class ShortenRequest(BaseModel):
 
 class IdentResponse(BaseModel):
     ident: str
+
+
+class IdentStatsResponse(BaseModel):
+    ident: str
+    click_count: int
