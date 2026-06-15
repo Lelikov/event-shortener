@@ -3,14 +3,14 @@ from datetime import UTC, datetime
 import structlog
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from event_shortener import metrics
 from event_shortener.auth import require_api_key
-from event_shortener.dto.short_url import ShortUrlDTO
 from event_shortener.interfaces.shortener import IShortenerController
+from event_shortener.pages import EXPIRED_PAGE, NOT_ACTIVE_PAGE, NOT_FOUND_PAGE
 from event_shortener.schemas.short_url import IdentResponse, IdentStatsResponse, ShortenRequest
 
 
@@ -76,26 +76,29 @@ async def ident_stats(ident: str, controller: FromDishka[IShortenerController]) 
     return IdentStatsResponse(ident=record.ident, click_count=record.click_count)
 
 
-def _within_window(record: ShortUrlDTO, now: datetime) -> bool:
-    if record.not_before is not None and now < record.not_before:
-        return False
-    return not (record.expires_at is not None and now >= record.expires_at)
-
-
 redirect_router = APIRouter(tags=["redirect"], route_class=DishkaRoute)
+
+_NO_STORE = {"Cache-Control": "no-store"}
 
 
 @redirect_router.get("/{ident}")
 async def redirect(ident: str, controller: FromDishka[IShortenerController]) -> Response:
-    """Public, unauthenticated redirect. 307 in-window, 410 outside it, 404 unknown."""
+    """Public, unauthenticated redirect. 307 in-window, 410 outside it, 404 unknown.
+
+    Error states render a minimal HTML page (browser-facing); API routes stay JSON.
+    """
     record = await controller.resolve(ident)
     if record is None:
         metrics.REDIRECTS_TOTAL.labels(result="not_found").inc()
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown short link")
+        return HTMLResponse(content=NOT_FOUND_PAGE, status_code=status.HTTP_404_NOT_FOUND, headers=_NO_STORE)
 
-    if not _within_window(record, datetime.now(UTC)):
+    now = datetime.now(UTC)
+    if record.not_before is not None and now < record.not_before:
         metrics.REDIRECTS_TOTAL.labels(result="expired").inc()
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Short link is not active")
+        return HTMLResponse(content=NOT_ACTIVE_PAGE, status_code=status.HTTP_410_GONE, headers=_NO_STORE)
+    if record.expires_at is not None and now >= record.expires_at:
+        metrics.REDIRECTS_TOTAL.labels(result="expired").inc()
+        return HTMLResponse(content=EXPIRED_PAGE, status_code=status.HTTP_410_GONE, headers=_NO_STORE)
 
     try:
         await controller.register_click(ident)

@@ -147,3 +147,44 @@ def test_expired_redirect_does_not_increment(client) -> None:
 
 def test_stats_unknown_ident_404(client) -> None:
     assert client.get("/api/v1/urls/abc-def-ghi/stats").status_code == 404
+
+
+def test_unknown_ident_returns_html_404(client) -> None:
+    resp = client.get("/no-such-ident", follow_redirects=False)
+    assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("text/html")
+    assert resp.headers.get("cache-control") == "no-store"
+    assert "Ссылка не найдена" in resp.text
+
+
+def test_not_yet_active_returns_html_410(client) -> None:
+    now = time.time()
+    client.post(
+        SHORTEN_URL,
+        json=_payload("ext-early", long_url="https://x.example", not_before=now + 3600, expires_at=now + 7200),
+    )
+    ident = client.get("/api/v1/urls/external/ext-early").json()["ident"]
+    resp = client.get(f"/{ident}", follow_redirects=False)
+    assert resp.status_code == 410
+    assert resp.headers["content-type"].startswith("text/html")
+    assert resp.headers.get("cache-control") == "no-store"
+    assert "ещё не активна" in resp.text
+
+
+def test_expired_returns_html_410(client) -> None:
+    now = time.time()
+    client.post(
+        SHORTEN_URL,
+        json=_payload("ext-old", long_url="https://x.example", not_before=now - 7200, expires_at=now - 3600),
+    )
+    ident = client.get("/api/v1/urls/external/ext-old").json()["ident"]
+    resp = client.get(f"/{ident}", follow_redirects=False)
+    assert resp.status_code == 410
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "Встреча завершена" in resp.text
+
+
+def test_stats_unknown_ident_stays_json(client) -> None:
+    resp = client.get("/api/v1/urls/abc-def-ghi/stats")
+    assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("application/json")
