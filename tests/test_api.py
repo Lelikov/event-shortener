@@ -1,5 +1,6 @@
 """Route-level integration tests against a real PostgreSQL (see conftest)."""
 
+import re
 import time
 
 
@@ -15,7 +16,7 @@ def test_shorten_returns_201_and_ident(client) -> None:
     assert resp.status_code == 201
     ident = resp.json()["ident"]
     assert isinstance(ident, str)
-    assert len(ident) == 7
+    assert re.fullmatch(r"[a-z]{3}-[a-z]{3}-[a-z]{3}", ident)
 
 
 def test_shorten_is_idempotent_by_external_id(client) -> None:

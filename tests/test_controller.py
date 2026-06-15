@@ -4,6 +4,7 @@ No DB needed: the adapter seam is faked so the unique-violation path is
 deterministic.
 """
 
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -55,7 +56,7 @@ async def test_collision_retries_then_succeeds() -> None:
     controller = ShortenerController(db)
     ident, created = await controller.shorten(_dto())
     assert created is True
-    assert len(ident) == 7
+    assert re.fullmatch(r"[a-z]{3}-[a-z]{3}-[a-z]{3}", ident)
     assert db.insert_calls == 3  # 2 collisions + 1 success
 
 
