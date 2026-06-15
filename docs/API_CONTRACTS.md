@@ -85,6 +85,12 @@ Idempotent: deleting an unknown `external_id` still returns `200 {}`.
 ```
 A null bound is open-ended. Unauthenticated.
 
+Because this route is browser-facing, the `404`/`410` outcomes return a **minimal
+HTML page** (`Content-Type: text/html`, `Cache-Control: no-store`), not JSON. The
+two `410` cases are distinguished: `now < not_before` → «Ссылка ещё не активна»,
+`now >= expires_at` → «Встреча завершена»; `404` → «Ссылка не найдена». All other
+endpoints (incl. `/api/v1/urls/{ident}/stats`) keep returning JSON.
+
 ## Ops endpoints (unauthenticated)
 
 - `GET /health` — liveness; `200 {"status":"ok"}`, no dependency calls.
