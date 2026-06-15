@@ -63,7 +63,7 @@ exactly the contract `event-booking` calls plus a public redirect.
 - **`dto/short_url.py`** — frozen dataclasses (`UpsertShortUrlDTO`, `ShortUrlDTO`).
 - **`schemas/short_url.py`** — Pydantic request/response; converts float epoch
   seconds on the wire ↔ aware `datetime` for storage as `timestamptz`.
-- **`ident.py`** — base62, 7-char random ident generator.
+- **`ident.py`** — Google-Meet-format ident generator (`xxx-xxx-xxx`, three groups of three lowercase letters); new links only — existing base62 idents keep resolving.
 - **`auth.py`** — `require_api_key`: static `Authorization: Bearer` compared with
   `hmac.compare_digest`; gates the `/api/v1` router only.
 - **`metrics.py`** — Prometheus: HTTP RED middleware (`http_requests_total`,
@@ -80,11 +80,12 @@ exactly the contract `event-booking` calls plus a public redirect.
 
 | Method | Path | Auth | Behaviour |
 |--------|------|------|-----------|
-| POST | `/api/v1/urls/shorten` | Bearer | `201 {ident}`; idempotent by `external_id` |
+| POST | `/api/v1/urls/shorten` | Bearer | `201 {ident}`; idempotent by `external_id`; new idents are `xxx-xxx-xxx` format |
+| GET | `/api/v1/urls/{ident}/stats` | Bearer | `200 {ident, click_count}` / `404` |
 | GET | `/api/v1/urls/external/{external_id}` | Bearer | `200 {ident}` / `404` |
 | PATCH | `/api/v1/urls/external/{old_external_id}` | Bearer | `200 {ident}`; updates fields incl. `external_id`, ident preserved; `404` if unknown |
 | DELETE | `/api/v1/urls/external/{external_id}` | Bearer | `200 {}` (idempotent) |
-| GET | `/{ident}` | public | `307` to `long_url` in window; `410` outside; `404` unknown |
+| GET | `/{ident}` | public | `307` to `long_url` in window (increments `click_count`); `410` outside; `404` unknown |
 | GET | `/health` | public | liveness, no deps |
 | GET | `/ready` | public | DB ping → `200`/`503` |
 | GET | `/metrics` | public | Prometheus exposition |

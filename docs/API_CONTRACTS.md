@@ -7,6 +7,19 @@ Internal HTTP port **8888**. Auth applies to `/api/v1/*` only:
 `expires_at` and `not_before` are **float epoch seconds** on the wire (nullable),
 stored as `timestamptz`.
 
+## Ident Format
+
+**New links** (created after the format migration) use a **Google-Meet-style
+ident**: three groups of three lowercase letters separated by hyphens —
+`xxx-xxx-xxx` (e.g. `abc-def-ghi`). **Existing idents keep resolving** — the
+redirect endpoint accepts both the old base62 format and the new format.
+
+## click_count
+
+The `short_urls` table has a `click_count` integer column (default 0). It is
+incremented **only on a successful `307` redirect** — `410 Gone` and
+`404 Not Found` outcomes do not increment it.
+
 ## POST /api/v1/urls/shorten
 
 Create (or idempotently fetch) a short URL.
@@ -22,11 +35,23 @@ Request:
 ```
 `expires_at` / `not_before` may be `null`. Response `201`:
 ```json
-{ "ident": "aZ09bcD" }
+{ "ident": "abc-def-ghi" }
 ```
 **Idempotent by `external_id`**: a repeat call with the same `external_id`
 returns the existing `ident` (the body fields are not re-applied — use PATCH to
 mutate). Auth failure → `401`.
+
+## GET /api/v1/urls/{ident}/stats
+
+Fetch click statistics for a short URL.
+
+```
+200 { "ident": "abc-def-ghi", "click_count": 42 }
+404   (unknown ident)
+```
+
+Auth: `Authorization: Bearer <SHORTENER_API_KEY>`. `click_count` reflects the
+number of successful `307` redirects recorded for this ident.
 
 ## GET /api/v1/urls/external/{external_id}
 
